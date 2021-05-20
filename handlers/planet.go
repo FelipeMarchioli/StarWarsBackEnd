@@ -14,6 +14,9 @@ import (
 // GetPlanets...
 func GetPlanets(c echo.Context) error {
 	response := services.GetPlanets()
+	if response.Message == "error" {
+		return c.JSON(http.StatusNotFound, response)
+	}
 
 	return c.JSON(http.StatusOK, response)
 }
@@ -30,6 +33,9 @@ func GetPlanetById(c echo.Context) error {
 	}
 
 	response = services.GetPlanetById(id)
+	if response.Message == "error" {
+		return c.JSON(http.StatusNotFound, response)
+	}
 
 	return c.JSON(http.StatusOK, response)
 }
@@ -46,6 +52,9 @@ func GetPlanetByName(c echo.Context) error {
 	}
 
 	response = services.GetPlanetByName(nome)
+	if response.Message == "error" {
+		return c.JSON(http.StatusNotFound, response)
+	}
 
 	return c.JSON(http.StatusOK, response)
 }
@@ -66,6 +75,9 @@ func AddPlanet(c echo.Context) error {
 	}
 
 	response = services.AddPlanet(planet)
+	if response.Message == "error" {
+		return c.JSON(http.StatusNotFound, response)
+	}
 
 	return c.JSON(http.StatusOK, response)
 }
@@ -82,6 +94,9 @@ func DeletePlanetById(c echo.Context) error {
 	}
 
 	response = services.DeletePlanetById(id)
+	if response.Message == "error" {
+		return c.JSON(http.StatusNotFound, response)
+	}
 
 	return c.JSON(http.StatusOK, response)
 }
