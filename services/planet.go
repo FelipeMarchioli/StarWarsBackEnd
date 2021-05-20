@@ -1,148 +1,108 @@
 package services
 
 import (
-	"StarWarsBackEnd/config"
-	"StarWarsBackEnd/database"
 	"StarWarsBackEnd/models"
-	"fmt"
-
-	"context"
-	"encoding/json"
-	"errors"
-	"log"
-	"net/http"
+	"StarWarsBackEnd/repository"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // GetPlanets...
-func GetPlanets() ([]models.Planeta, error) {
-	var planetas []models.Planeta
-	var filter = bson.M{}
+func GetPlanets() models.ApiResponse {
+	var response models.ApiResponse
 
-	collection := database.Connect().Collection(config.DB_COLLECTION)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	cursor, err := collection.Find(ctx, filter)
-
-	defer cursor.Close(ctx)
-	for cursor.Next(ctx) {
-		var planeta models.Planeta
-		cursor.Decode(&planeta)
-		planetas = append(planetas, planeta)
-	}
-	if err := cursor.Err(); err != nil {
-		return planetas, err
+	planets, err := repository.GetPlanets()
+	if err != nil {
+		response.Message = "error"
+		return response
 	}
 
-	return planetas, err
+	response.Message = "success"
+	response.Value = planets
+
+	return response
 }
 
 // GetPlanetById...
-func GetPlanetById(id string) (models.Planeta, error) {
-	var planeta models.Planeta
+func GetPlanetById(id string) models.ApiResponse {
+	var response models.ApiResponse
 
-	collection := database.Connect().Collection(config.DB_COLLECTION)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	oId, _ := primitive.ObjectIDFromHex(id)
-	filter := bson.M{
-		"_id":      oId,
-		"deletado": false,
+	planet, err := repository.GetPlanetById(id)
+	if err != nil {
+		response.Message = "error"
+		response.Value = err.Error()
+		return response
 	}
 
-	err := collection.FindOne(ctx, filter).Decode(&planeta)
-
-	emptyId, _ := primitive.ObjectIDFromHex("")
-	if planeta.ID == emptyId {
-		err = errors.New("planeta-não-encontrado")
-	}
-
-	return planeta, err
+	response.Message = "success"
+	response.Value = planet
+	return response
 }
 
 // GetPlanetByName...
-func GetPlanetByName(nome string) (models.Planeta, error) {
-	var planeta models.Planeta
+func GetPlanetByName(nome string) models.ApiResponse {
+	var response models.ApiResponse
 
-	collection := database.Connect().Collection(config.DB_COLLECTION)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	filter := bson.M{
-		"nome":     nome,
-		"deletado": false,
+	planet, err := repository.GetPlanetByName(nome)
+	if err != nil {
+		response.Message = "error"
+		response.Value = err.Error()
+		return response
 	}
 
-	err := collection.FindOne(ctx, filter).Decode(&planeta)
-
-	emptyId, _ := primitive.ObjectIDFromHex("")
-	if planeta.ID == emptyId {
-		err = errors.New("planeta-não-encontrado")
-	}
-
-	return planeta, err
+	response.Message = "success"
+	response.Value = planet
+	return response
 }
 
 // AddPlanet...
-func AddPlanet(planet models.Planeta) error {
-	type Planetas struct {
-		Count   int                        `json:"count"`
-		Next    string                     `json:"next"`
-		Previus string                     `json:"previous"`
-		Results []models.PlanetaSWResponse `json:"results"`
+func AddPlanet(planet models.Planeta) models.ApiResponse {
+	var response models.ApiResponse
+
+	_, err := repository.GetPlanetByName(planet.Nome)
+	if err == nil {
+		response.Message = "error"
+		response.Value = "planeta-já-criado"
+		return response
 	}
-	var planetasSW Planetas
 
-	collection := database.Connect().Collection(config.DB_COLLECTION)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	planet.ID = primitive.NewObjectID()
+	planet.Deletado = false
+	planet.CreatedAt = time.Now()
+	planet.UpdatedAt = time.Now()
 
-	res, err := http.Get(config.URL_SW_PLANETS)
+	err = repository.AddPlanet(planet)
 	if err != nil {
-		log.Fatal(err)
-		return err
+		response.Message = "error"
+		response.Value = err.Error()
+		return response
 	}
 
-	err = json.NewDecoder(res.Body).Decode(&planetasSW)
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-
-	for _, planeta := range planetasSW.Results {
-		if planeta.Name == planet.Nome {
-			planet.Aparicoes = len(planeta.FilmURLs)
-
-			_, err := collection.InsertOne(ctx, planet)
-			return err
-		} else {
-			err = errors.New("planeta-não-existe")
-		}
-	}
-
-	return err
+	response.Message = "success"
+	response.Value = "planeta-criado"
+	return response
 }
 
-// DeletePlanet...
-func DeletePlanet(planet models.Planeta) error {
-	collection := database.Connect().Collection(config.DB_COLLECTION)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+// DeletePlanetById...
+func DeletePlanetById(id string) models.ApiResponse {
+	var response models.ApiResponse
 
-	filter := bson.M{"_id": planet.ID}
-	update := bson.M{"$set": bson.M{
-		"updatedAt": time.Now(),
-		"deletado":  true,
-	}}
+	planet, err := repository.GetPlanetById(id)
+	if err != nil {
+		response.Message = "error"
+		response.Value = "planeta-não-criado"
+		return response
+	}
 
-	result, err := collection.UpdateOne(ctx, filter, update)
+	err = repository.DeletePlanet(planet)
+	if err != nil {
+		response.Message = "error"
+		response.Value = err.Error()
+		return response
+	}
 
-	fmt.Println(result)
-
-	return err
+	response.Message = "success"
+	response.Value = "planeta-deletado"
+	return response
 }
